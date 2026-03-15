@@ -1,43 +1,94 @@
 import { useGameStore } from '@/store/gameStore';
 import { LEVEL_AMOUNTS, MILESTONE_LEVELS, ANSWER_LABELS } from '@/types/game';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Scissors, Users, Phone } from 'lucide-react';
 
 const OverlayGame = () => {
-  const { overlayState, session } = useGameStore();
+  const { overlayState, session, lifelines } = useGameStore();
   const { currentQuestion, revealAnswer, hiddenAnswerIds, correctAnswerId, gameFinished } = overlayState;
+
+  const lifelineIcons = {
+    FIFTY_FIFTY: Scissors,
+    ASK_AUDIENCE: Users,
+    PHONE_FRIEND: Phone,
+  };
 
   return (
     <div className="w-[1920px] h-[1080px] relative overflow-hidden" style={{ background: 'transparent' }}>
-      {/* Level Ladder - Right Side */}
+
+      {/* Lifelines - Top Right */}
+      <AnimatePresence>
+        {session && session.status === 'PLAYING' && (
+          <motion.div
+            initial={{ y: -50, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: -50, opacity: 0 }}
+            transition={{ duration: 0.4 }}
+            className="absolute top-6 right-8 flex items-center gap-3"
+          >
+            {lifelines.map(ll => {
+              const Icon = lifelineIcons[ll.type];
+              return (
+                <motion.div
+                  key={ll.id}
+                  animate={ll.used ? { opacity: 0.3, scale: 0.9 } : { opacity: 1, scale: 1 }}
+                  className={`w-14 h-14 rounded-full flex items-center justify-center border-2 ${
+                    ll.used
+                      ? 'bg-muted/60 border-muted-foreground/30'
+                      : 'bg-card/80 border-accent/60 backdrop-blur-xl'
+                  }`}
+                >
+                  <Icon size={24} className={ll.used ? 'text-muted-foreground' : 'text-accent'} />
+                  {ll.used && (
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <div className="w-10 h-0.5 bg-destructive rotate-45 rounded-full" />
+                    </div>
+                  )}
+                </motion.div>
+              );
+            })}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Horizontal Level Ladder - Bottom area, above question */}
       <AnimatePresence>
         {session && session.status === 'PLAYING' && currentQuestion && (
           <motion.div
-            initial={{ x: 100, opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            exit={{ x: 100, opacity: 0 }}
-            transition={{ duration: 0.4, ease: 'easeOut' }}
-            className="absolute right-6 top-1/2 -translate-y-1/2 w-52"
+            initial={{ y: 30, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 30, opacity: 0 }}
+            transition={{ duration: 0.4 }}
+            className="absolute bottom-[340px] left-1/2 -translate-x-1/2"
           >
-            <div className="bg-card/80 backdrop-blur-xl border border-primary/20 rounded-2xl p-3 flex flex-col-reverse gap-1">
-              {Array.from({ length: 15 }, (_, i) => i + 1).map(level => {
+            <div className="flex items-center gap-0">
+              {Array.from({ length: 15 }, (_, i) => i + 1).map((level, idx) => {
                 const isCurrent = session.currentLevel === level;
                 const isCompleted = session.currentLevel > level;
                 const isMilestone = MILESTONE_LEVELS.includes(level);
                 return (
-                  <motion.div
-                    key={level}
-                    animate={isCurrent ? { scale: [1, 1.05, 1] } : {}}
-                    transition={{ duration: 0.6, repeat: isCurrent ? Infinity : 0, repeatDelay: 2 }}
-                    className={`flex items-center justify-between px-3 py-1.5 rounded-lg font-display text-xs transition-all ${
-                      isCurrent ? 'bg-primary text-primary-foreground font-bold glow-blue' :
-                      isCompleted ? 'bg-accent/20 text-accent font-semibold' :
-                      isMilestone ? 'text-accent/60 font-semibold' :
-                      'text-muted-foreground/50'
-                    }`}
-                  >
-                    <span>{level}</span>
-                    <span>{LEVEL_AMOUNTS[level]}</span>
-                  </motion.div>
+                  <div key={level} className="flex items-center">
+                    <motion.div
+                      animate={isCurrent ? { scale: [1, 1.15, 1] } : {}}
+                      transition={{ duration: 1.2, repeat: isCurrent ? Infinity : 0, repeatDelay: 1 }}
+                      className={`w-10 h-10 rounded-full flex items-center justify-center font-display font-bold text-sm border-2 transition-all ${
+                        isCurrent
+                          ? 'bg-accent text-accent-foreground border-accent glow-gold scale-110 z-10'
+                          : isCompleted
+                            ? 'bg-success/80 text-success-foreground border-success/60'
+                            : isMilestone
+                              ? 'bg-card/60 text-accent/70 border-accent/40'
+                              : 'bg-card/40 text-muted-foreground/60 border-border/40'
+                      }`}
+                    >
+                      {level}
+                    </motion.div>
+                    {idx < 14 && (
+                      <div className={`w-6 h-0.5 ${
+                        isCompleted ? 'bg-success/60' : 'bg-border/40'
+                      }`} />
+                    )}
+                  </div>
                 );
               })}
             </div>
@@ -50,33 +101,18 @@ const OverlayGame = () => {
         {currentQuestion && !gameFinished && (
           <motion.div
             key={currentQuestion.id}
-            initial={{ y: 100, opacity: 0 }}
+            initial={{ y: 80, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
-            exit={{ y: 100, opacity: 0 }}
+            exit={{ y: 80, opacity: 0 }}
             transition={{ duration: 0.35, ease: 'easeOut' }}
-            className="absolute bottom-8 left-8 right-72"
+            className="absolute bottom-6 left-12 right-12"
           >
-            {/* Category Badge */}
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 }}
-              className="mb-3 flex items-center gap-3"
-            >
-              <span className="bg-accent/20 text-accent px-4 py-1.5 rounded-full font-display font-bold text-sm border border-accent/30">
-                {currentQuestion.category}
-              </span>
-              <span className="text-accent font-display font-bold text-sm">
-                Level {currentQuestion.level} — {LEVEL_AMOUNTS[currentQuestion.level]}
-              </span>
-            </motion.div>
-
             {/* Question Box */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.15, duration: 0.3 }}
-              className="bg-card/85 backdrop-blur-2xl border border-primary/30 rounded-2xl px-10 py-6 mb-5 glow-blue"
+              transition={{ delay: 0.1, duration: 0.3 }}
+              className="bg-card/85 backdrop-blur-2xl border border-primary/30 rounded-2xl px-10 py-5 mb-4 text-center"
             >
               <p className="text-foreground font-display font-bold text-2xl leading-relaxed">
                 {currentQuestion.text}
@@ -102,28 +138,28 @@ const OverlayGame = () => {
                         }}
                         exit={{ opacity: 0, scale: 0.8 }}
                         transition={{
-                          delay: 0.25 + index * 0.1,
+                          delay: 0.2 + index * 0.08,
                           duration: 0.3,
                           ...(isCorrectAnswer && isRevealed ? {
                             scale: { duration: 0.6, repeat: 1, ease: 'easeInOut' }
                           } : {}),
                         }}
                         className={`
-                          flex items-center gap-4 px-8 py-5 rounded-xl border-2 backdrop-blur-xl transition-colors duration-500
+                          flex items-center gap-4 px-8 py-4 rounded-xl border-2 backdrop-blur-xl transition-colors duration-500
                           ${isCorrectAnswer && isRevealed
                             ? 'bg-success/30 border-success glow-green'
                             : isRevealed
                               ? 'bg-card/50 border-border/30 opacity-60'
-                              : 'bg-card/70 border-primary/20 hover:border-primary/40'
+                              : 'bg-card/70 border-primary/20'
                           }
                         `}
                       >
-                        <span className={`font-display font-black text-xl w-9 h-9 flex items-center justify-center rounded-lg ${
+                        <span className={`font-display font-black text-lg ${
                           isCorrectAnswer && isRevealed
-                            ? 'bg-success text-success-foreground'
-                            : 'bg-accent/20 text-accent'
+                            ? 'text-success'
+                            : 'text-accent'
                         }`}>
-                          {ANSWER_LABELS[index]}
+                          · {ANSWER_LABELS[index]}:
                         </span>
                         <span className="text-foreground font-display font-semibold text-lg">
                           {answer.text}
