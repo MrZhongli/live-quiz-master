@@ -73,6 +73,13 @@ interface GameStore {
   finishGame: () => void;
   useLifeline: (type: LifelineType) => void;
   resetGame: () => void;
+
+  // CRUD actions
+  addQuestionSet: (name: string) => void;
+  deleteQuestionSet: (id: string) => void;
+  addQuestion: (setId: string, question: Question) => void;
+  updateQuestion: (question: Question) => void;
+  deleteQuestion: (setId: string, questionId: string) => void;
 }
 
 const initialOverlay: OverlayState = {
