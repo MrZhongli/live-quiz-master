@@ -204,4 +204,45 @@ export const useGameStore = create<GameStore>((set, get) => ({
   resetGame: () => {
     set({ session: null, lifelines: [], overlayState: initialOverlay });
   },
+
+  addQuestionSet: (name: string) => {
+    const newSet = {
+      id: crypto.randomUUID(),
+      name,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      questions: [],
+    };
+    set({ questionSets: [...get().questionSets, newSet] });
+  },
+
+  deleteQuestionSet: (id: string) => {
+    set({ questionSets: get().questionSets.filter(s => s.id !== id) });
+  },
+
+  addQuestion: (setId: string, question: Question) => {
+    set({
+      questionSets: get().questionSets.map(s =>
+        s.id === setId ? { ...s, questions: [...s.questions, question], updatedAt: new Date().toISOString() } : s
+      ),
+    });
+  },
+
+  updateQuestion: (question: Question) => {
+    set({
+      questionSets: get().questionSets.map(s =>
+        s.id === question.setId
+          ? { ...s, questions: s.questions.map(q => q.id === question.id ? question : q), updatedAt: new Date().toISOString() }
+          : s
+      ),
+    });
+  },
+
+  deleteQuestion: (setId: string, questionId: string) => {
+    set({
+      questionSets: get().questionSets.map(s =>
+        s.id === setId ? { ...s, questions: s.questions.filter(q => q.id !== questionId), updatedAt: new Date().toISOString() } : s
+      ),
+    });
+  },
 }));
