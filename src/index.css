@@ -1,96 +1,73 @@
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800;900&family=Inter:wght@300;400;500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
-All colors MUST be HSL.
-*/
-
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    --background: 222 47% 11%;
+    --foreground: 0 0% 100%;
 
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card: 222 47% 14%;
+    --card-foreground: 0 0% 100%;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
+    --popover: 222 47% 14%;
+    --popover-foreground: 0 0% 100%;
 
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
+    --primary: 217 91% 60%;
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 222 47% 20%;
+    --secondary-foreground: 0 0% 100%;
 
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    --muted: 222 30% 25%;
+    --muted-foreground: 215 20% 65%;
 
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    --accent: 38 92% 50%;
+    --accent-foreground: 0 0% 100%;
 
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 343 88% 51%;
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
+    --success: 160 84% 39%;
+    --success-foreground: 0 0% 100%;
 
-    --radius: 0.5rem;
+    --gold: 38 92% 50%;
+    --gold-foreground: 0 0% 10%;
 
-    --sidebar-background: 0 0% 98%;
+    --border: 217 30% 25%;
+    --input: 217 30% 20%;
+    --ring: 217 91% 60%;
 
-    --sidebar-foreground: 240 5.3% 26.1%;
+    --radius: 0.75rem;
 
-    --sidebar-primary: 240 5.9% 10%;
-
-    --sidebar-primary-foreground: 0 0% 98%;
-
-    --sidebar-accent: 240 4.8% 95.9%;
-
-    --sidebar-accent-foreground: 240 5.9% 10%;
-
-    --sidebar-border: 220 13% 91%;
-
-    --sidebar-ring: 217.2 91.2% 59.8%;
-  }
-
-  .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-background: 222 47% 8%;
+    --sidebar-foreground: 0 0% 90%;
+    --sidebar-primary: 217 91% 60%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --sidebar-accent: 222 47% 16%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 217 30% 20%;
+    --sidebar-ring: 217 91% 60%;
+
+    /* Glassmorphism */
+    --glass-bg: 222 47% 11% / 0.7;
+    --glass-border: 217 91% 60% / 0.3;
+
+    /* Gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(217 91% 60%), hsl(222 47% 30%));
+    --gradient-gold: linear-gradient(135deg, hsl(38 92% 50%), hsl(30 90% 40%));
+    --gradient-success: linear-gradient(135deg, hsl(160 84% 39%), hsl(160 84% 30%));
+    --gradient-danger: linear-gradient(135deg, hsl(343 88% 51%), hsl(343 88% 40%));
+    --gradient-dark: linear-gradient(180deg, hsl(222 47% 14%), hsl(222 47% 8%));
+
+    /* Shadows */
+    --shadow-glow-blue: 0 0 20px hsl(217 91% 60% / 0.4);
+    --shadow-glow-gold: 0 0 20px hsl(38 92% 50% / 0.4);
+    --shadow-glow-green: 0 0 20px hsl(160 84% 39% / 0.4);
+    --shadow-glow-red: 0 0 20px hsl(343 88% 51% / 0.4);
+    --shadow-deep: 0 10px 40px hsl(222 47% 5% / 0.6);
   }
 }
 
@@ -98,8 +75,65 @@ All colors MUST be HSL.
   * {
     @apply border-border;
   }
-
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground font-body antialiased;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-display;
+  }
+}
+
+@layer components {
+  .glass-panel {
+    @apply bg-card/70 backdrop-blur-xl border border-primary/20 rounded-xl;
+  }
+  .glass-panel-gold {
+    @apply bg-card/70 backdrop-blur-xl border border-accent/30 rounded-xl;
+  }
+  .glow-blue {
+    box-shadow: var(--shadow-glow-blue);
+  }
+  .glow-gold {
+    box-shadow: var(--shadow-glow-gold);
+  }
+  .glow-green {
+    box-shadow: var(--shadow-glow-green);
+  }
+  .glow-red {
+    box-shadow: var(--shadow-glow-red);
+  }
+  .answer-diamond {
+    @apply relative glass-panel px-6 py-4 cursor-pointer transition-all duration-200;
+    clip-path: polygon(5% 0%, 95% 0%, 100% 50%, 95% 100%, 5% 100%, 0% 50%);
+  }
+  .level-bar {
+    @apply px-3 py-1.5 text-sm font-display font-bold rounded transition-all duration-300;
+  }
+  .level-bar-active {
+    @apply level-bar bg-primary text-primary-foreground glow-blue;
+  }
+  .level-bar-completed {
+    @apply level-bar bg-accent/20 text-accent;
+  }
+  .level-bar-upcoming {
+    @apply level-bar bg-secondary/50 text-muted-foreground;
+  }
+  .level-bar-milestone {
+    @apply level-bar bg-accent text-accent-foreground glow-gold;
+  }
+  .admin-btn {
+    @apply font-display font-bold text-lg px-8 py-4 rounded-xl transition-all duration-200 active:scale-95;
+  }
+  .admin-btn-primary {
+    @apply admin-btn bg-primary text-primary-foreground hover:brightness-110 glow-blue;
+  }
+  .admin-btn-gold {
+    @apply admin-btn bg-accent text-accent-foreground hover:brightness-110 glow-gold;
+  }
+  .admin-btn-success {
+    @apply admin-btn bg-success text-success-foreground hover:brightness-110 glow-green;
+  }
+  .admin-btn-danger {
+    @apply admin-btn bg-destructive text-destructive-foreground hover:brightness-110 glow-red;
   }
 }
