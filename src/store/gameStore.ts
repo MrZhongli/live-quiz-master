@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { io } from 'socket.io-client';
 import type { Question, QuestionSet, GameSession, LifelineUsage, OverlayState, LifelineType, SessionStatus } from '@/types/game';
 
 // Mock data
@@ -246,3 +247,40 @@ export const useGameStore = create<GameStore>((set, get) => ({
     });
   },
 }));
+
+// Sincronización Real-time vía WebSocket (Socket.io)
+let isUpdatingFromSync = false;
+
+if (typeof window !== 'undefined') {
+  const role = window.location.pathname.includes('/admin') ? 'admin' : 'overlay';
+  
+  // Conectar al servidor de NestJS (Namespace: /ws/game)
+  const socket = io(`http://${window.location.hostname}:3001/ws/game`, {
+    query: { role },
+    transports: ['websocket', 'polling']
+  });
+
+  socket.on('connect', () => {
+    console.log(`[Socket] Conectado exitosamente como: ${role}`);
+  });
+
+  // Escuchar el estado global enviado por el servidor o por un administrador
+  socket.on('OVERLAY_STATE', (data) => {
+    try {
+      const newState = typeof data === 'string' ? JSON.parse(data) : data;
+      isUpdatingFromSync = true;
+      useGameStore.setState(newState);
+      isUpdatingFromSync = false;
+    } catch (err) {
+      console.error('[Socket] Error al procesar la sincronización:', err);
+    }
+  });
+
+  // Si somos el administrador, emitimos cualquier cambio local al servidor
+  useGameStore.subscribe((state) => {
+    if (!isUpdatingFromSync && role === 'admin' && socket.connected) {
+      socket.emit('ADMIN_SYNC', state);
+    }
+  });
+}
+

@@ -3,7 +3,18 @@ import { LEVEL_AMOUNTS, MILESTONE_LEVELS, ANSWER_LABELS } from '@/types/game';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Scissors, Users, Phone } from 'lucide-react';
 
+import { useEffect } from 'react';
+
 const OverlayGame = () => {
+  useEffect(() => {
+    // Force the body background to be completely transparent for OBS
+    document.body.style.backgroundColor = 'transparent';
+    document.documentElement.style.backgroundColor = 'transparent';
+    return () => {
+      document.body.style.backgroundColor = '';
+      document.documentElement.style.backgroundColor = '';
+    };
+  }, []);
   const { overlayState, session, lifelines } = useGameStore();
   const { currentQuestion, revealAnswer, hiddenAnswerIds, correctAnswerId, gameFinished } = overlayState;
 
