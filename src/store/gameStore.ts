@@ -248,38 +248,52 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 }));
 
-// Sincronización Real-time vía WebSocket (Socket.io)
+// Sincronización Real-time Híbrida (Socket.io + BroadcastChannel)
 let isUpdatingFromSync = false;
 
 if (typeof window !== 'undefined') {
   const role = window.location.pathname.includes('/admin') ? 'admin' : 'overlay';
+  const isDemo = new URLSearchParams(window.location.search).get('demo') === 'true';
   
-  // Conectar al servidor de NestJS (Namespace: /ws/game)
-  const socket = io(`http://${window.location.hostname}:3001/ws/game`, {
+  // 1. Conexión WebSocket (Backend necesario para Chrome -> OBS) - Muteada en local si es demo
+  const socket = !isDemo ? io(`http://${window.location.hostname || 'localhost'}:3001/ws/game`, {
     query: { role },
     transports: ['websocket', 'polling']
-  });
+  }) : null;
 
-  socket.on('connect', () => {
-    console.log(`[Socket] Conectado exitosamente como: ${role}`);
-  });
+  if (socket) {
+    socket.on('OVERLAY_STATE', (data) => {
+      try {
+        const newState = typeof data === 'string' ? JSON.parse(data) : data;
+        isUpdatingFromSync = true;
+        useGameStore.setState(newState);
+        isUpdatingFromSync = false;
+      } catch (err) {}
+    });
+  }
 
-  // Escuchar el estado global enviado por el servidor o por un administrador
-  socket.on('OVERLAY_STATE', (data) => {
+  // 2. Conexión Local (No requiere backend, pero funciona sólo entre pestañas del MISMO navegador)
+  const channel = new BroadcastChannel('game_sync_channel');
+  channel.onmessage = (event) => {
     try {
-      const newState = typeof data === 'string' ? JSON.parse(data) : data;
+      const newState = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
       isUpdatingFromSync = true;
       useGameStore.setState(newState);
       isUpdatingFromSync = false;
     } catch (err) {
-      console.error('[Socket] Error al procesar la sincronización:', err);
+      console.error('[Local] Error al procesar:', err);
     }
-  });
+  };
 
-  // Si somos el administrador, emitimos cualquier cambio local al servidor
+  // Cuando el estado cambia internamente, lo gritamos por amos canales
   useGameStore.subscribe((state) => {
-    if (!isUpdatingFromSync && role === 'admin' && socket.connected) {
-      socket.emit('ADMIN_SYNC', state);
+    if (!isUpdatingFromSync && role === 'admin') {
+      // Intentar emitir por WebSocket para el OBS (si el panel está conectado)
+      if (socket && socket.connected) {
+        socket.emit('ADMIN_SYNC', state);
+      }
+      // Emitir siempre de manera local para pestañas dentro del mismo Chrome
+      channel.postMessage(JSON.stringify(state));
     }
   });
 }

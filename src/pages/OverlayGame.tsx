@@ -15,8 +15,23 @@ const OverlayGame = () => {
       document.documentElement.style.backgroundColor = '';
     };
   }, []);
-  const { overlayState, session, lifelines } = useGameStore();
-  const { currentQuestion, revealAnswer, hiddenAnswerIds, correctAnswerId, gameFinished } = overlayState;
+  const { overlayState, session, lifelines, createSession, startGame, nextQuestion, revealAnswer, finishGame } = useGameStore();
+  const { currentQuestion, revealAnswer: isRevealed, hiddenAnswerIds, correctAnswerId, gameFinished } = overlayState;
+
+  // Detectar si queremos mostrar el modo demo local
+  const isDemoMode = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('demo') === 'true';
+
+  // Autoplay para Modo Demo: Si es demo, que se juegue solo para que el usuario no tenga que hacer clics en OBS
+  useEffect(() => {
+    if (isDemoMode) {
+      setTimeout(() => createSession('s1'), 1500); // Aparece Waiting State
+      setTimeout(() => startGame(), 4000); // Empieza juego (Nivel 1, Pregunta 1)
+      setTimeout(() => revealAnswer(), 9000); // Revela correcta
+      setTimeout(() => nextQuestion(), 13000); // Avanza a sgte nivel
+      setTimeout(() => revealAnswer(), 18000); // Revela
+      setTimeout(() => finishGame(), 22000); // Pantalla final
+    }
+  }, [isDemoMode, createSession, startGame, revealAnswer, nextQuestion, finishGame]);
 
   const lifelineIcons = {
     FIFTY_FIFTY: Scissors,
@@ -26,6 +41,17 @@ const OverlayGame = () => {
 
   return (
     <div className="w-[1920px] h-[1080px] relative overflow-hidden" style={{ background: 'transparent' }}>
+
+      {/* Panel de Modo Demo para probar directo interactuando desde OBS */}
+      {isDemoMode && (
+        <div className="absolute top-6 left-6 z-50 flex flex-col gap-2 bg-black/80 backdrop-blur-md p-4 rounded-xl border border-white/20 shadow-2xl">
+          <p className="text-white text-xs font-bold mb-1 opacity-50">🕹️ AUTO DEMO EN CURSO...</p>
+          <p className="text-white/60 text-[10px] uppercase">Se animará solo (Espera 22 seg)</p>
+          <div className="flex gap-2">
+            <button onClick={() => finishGame()} className="px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white rounded text-sm font-bold transition-colors">Ver Final</button>
+          </div>
+        </div>
+      )}
 
       {/* Lifelines - Top Right */}
       <AnimatePresence>
@@ -135,7 +161,6 @@ const OverlayGame = () => {
               {currentQuestion.answers.map((answer, index) => {
                 const isHidden = hiddenAnswerIds.includes(answer.id);
                 const isCorrectAnswer = correctAnswerId === answer.id;
-                const isRevealed = revealAnswer;
 
                 return (
                   <AnimatePresence key={answer.id}>
