@@ -6,6 +6,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import Index from "./pages/Index.tsx";
 import AdminPanel from "./pages/AdminPanel.tsx";
 import OverlayGame from "./pages/OverlayGame.tsx";
+import LoginPage from "./pages/LoginPage.tsx";
+import ProtectedRoute from "./components/ProtectedRoute.tsx";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
@@ -18,7 +20,15 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Index />} />
-          <Route path="/admin" element={<AdminPanel />} />
+          <Route path="/login" element={<LoginPage />} />
+          <Route
+            path="/admin"
+            element={
+              <ProtectedRoute>
+                <AdminPanel />
+              </ProtectedRoute>
+            }
+          />
           <Route path="/overlay/game" element={<OverlayGame />} />
           <Route path="*" element={<NotFound />} />
         </Routes>

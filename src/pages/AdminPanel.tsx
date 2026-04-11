@@ -1,16 +1,21 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useGameStore } from '@/store/gameStore';
 import { LEVEL_AMOUNTS, MILESTONE_LEVELS } from '@/types/game';
 import { Phone, Users, Scissors, Play, Eye, SkipForward, Square, RotateCcw, Zap, BookOpen } from 'lucide-react';
 import QuestionSetManager from '@/components/QuestionSetManager';
 
 const AdminPanel = () => {
+  const loadQuestionSets = useGameStore((s) => s.loadQuestionSets);
   const {
     questionSets, session, lifelines, overlayState,
     createSession, startGame, nextQuestion, revealAnswer,
     finishGame, useLifeline, resetGame,
   } = useGameStore();
   const [tab, setTab] = useState<'control' | 'questions'>('control');
+
+  useEffect(() => {
+    loadQuestionSets();
+  }, [loadQuestionSets]);
 
   const currentSet = questionSets.find(s => s.id === session?.setId);
   const isPlaying = session?.status === 'PLAYING';

@@ -1,63 +1,17 @@
 import { create } from 'zustand';
-import { io } from 'socket.io-client';
-import type { Question, QuestionSet, GameSession, LifelineUsage, OverlayState, LifelineType, SessionStatus } from '@/types/game';
+import { io, Socket } from 'socket.io-client';
+import { toast } from 'sonner';
+import { apiClient } from '@/lib/apiClient';
+import type {
+  Question,
+  QuestionSet,
+  GameSession,
+  LifelineUsage,
+  OverlayState,
+  LifelineType,
+} from '@/types/game';
 
-// Mock data
-const mockQuestions: Question[] = [
-  {
-    id: 'q1', text: 'What is the capital of France?', level: 1, category: 'Geography', setId: 's1',
-    answers: [
-      { id: 'a1', text: 'London', questionId: 'q1', isCorrect: false },
-      { id: 'a2', text: 'Paris', questionId: 'q1', isCorrect: true },
-      { id: 'a3', text: 'Berlin', questionId: 'q1', isCorrect: false },
-      { id: 'a4', text: 'Madrid', questionId: 'q1', isCorrect: false },
-    ],
-  },
-  {
-    id: 'q2', text: 'Which planet is known as the Red Planet?', level: 2, category: 'Science', setId: 's1',
-    answers: [
-      { id: 'a5', text: 'Venus', questionId: 'q2', isCorrect: false },
-      { id: 'a6', text: 'Jupiter', questionId: 'q2', isCorrect: false },
-      { id: 'a7', text: 'Mars', questionId: 'q2', isCorrect: true },
-      { id: 'a8', text: 'Saturn', questionId: 'q2', isCorrect: false },
-    ],
-  },
-  {
-    id: 'q3', text: 'Who painted the Mona Lisa?', level: 3, category: 'Art', setId: 's1',
-    answers: [
-      { id: 'a9', text: 'Van Gogh', questionId: 'q3', isCorrect: false },
-      { id: 'a10', text: 'Picasso', questionId: 'q3', isCorrect: false },
-      { id: 'a11', text: 'Da Vinci', questionId: 'q3', isCorrect: true },
-      { id: 'a12', text: 'Rembrandt', questionId: 'q3', isCorrect: false },
-    ],
-  },
-  {
-    id: 'q4', text: 'What is the largest ocean on Earth?', level: 4, category: 'Geography', setId: 's1',
-    answers: [
-      { id: 'a13', text: 'Atlantic', questionId: 'q4', isCorrect: false },
-      { id: 'a14', text: 'Indian', questionId: 'q4', isCorrect: false },
-      { id: 'a15', text: 'Arctic', questionId: 'q4', isCorrect: false },
-      { id: 'a16', text: 'Pacific', questionId: 'q4', isCorrect: true },
-    ],
-  },
-  {
-    id: 'q5', text: 'In what year did the Titanic sink?', level: 5, category: 'History', setId: 's1',
-    answers: [
-      { id: 'a17', text: '1905', questionId: 'q5', isCorrect: false },
-      { id: 'a18', text: '1912', questionId: 'q5', isCorrect: true },
-      { id: 'a19', text: '1920', questionId: 'q5', isCorrect: false },
-      { id: 'a20', text: '1898', questionId: 'q5', isCorrect: false },
-    ],
-  },
-];
-
-const mockSet: QuestionSet = {
-  id: 's1',
-  name: 'General Knowledge',
-  createdAt: new Date().toISOString(),
-  updatedAt: new Date().toISOString(),
-  questions: mockQuestions,
-};
+// ─── Types ───────────────────────────────────────────────────────────────────
 
 interface GameStore {
   // Data
@@ -65,23 +19,29 @@ interface GameStore {
   session: GameSession | null;
   lifelines: LifelineUsage[];
   overlayState: OverlayState;
+  loading: boolean;
 
-  // Admin actions
-  createSession: (setId: string) => void;
-  startGame: () => void;
-  nextQuestion: () => void;
-  revealAnswer: () => void;
-  finishGame: () => void;
-  useLifeline: (type: LifelineType) => void;
+  // Bootstrap
+  loadQuestionSets: () => Promise<void>;
+
+  // Admin game actions
+  createSession: (setId: string) => Promise<void>;
+  startGame: () => Promise<void>;
+  nextQuestion: () => Promise<void>;
+  revealAnswer: () => Promise<void>;
+  finishGame: () => Promise<void>;
+  useLifeline: (type: LifelineType) => Promise<void>;
   resetGame: () => void;
 
-  // CRUD actions
-  addQuestionSet: (name: string) => void;
-  deleteQuestionSet: (id: string) => void;
-  addQuestion: (setId: string, question: Question) => void;
-  updateQuestion: (question: Question) => void;
-  deleteQuestion: (setId: string, questionId: string) => void;
+  // Question set CRUD
+  addQuestionSet: (name: string) => Promise<void>;
+  deleteQuestionSet: (id: string) => Promise<void>;
+  addQuestion: (setId: string, question: Omit<Question, 'id'>) => Promise<void>;
+  updateQuestion: (question: Question) => Promise<void>;
+  deleteQuestion: (setId: string, questionId: string) => Promise<void>;
 }
+
+// ─── Initial state ────────────────────────────────────────────────────────────
 
 const initialOverlay: OverlayState = {
   id: 'main',
@@ -90,211 +50,353 @@ const initialOverlay: OverlayState = {
   gameFinished: false,
 };
 
+// ─── WebSocket setup (singleton, shared between admin and overlay) ─────────────
+
+const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3001';
+const role =
+  typeof window !== 'undefined' && window.location.pathname.includes('/admin')
+    ? 'admin'
+    : 'overlay';
+const isDemo =
+  typeof window !== 'undefined' &&
+  new URLSearchParams(window.location.search).get('demo') === 'true';
+
+let socket: Socket | null = null;
+if (typeof window !== 'undefined' && !isDemo) {
+  socket = io(`${API_URL}/ws/game`, {
+    query: { role },
+    transports: ['websocket', 'polling'],
+  });
+}
+
+// BroadcastChannel for same-browser tab sync (admin → overlay in same browser)
+const channel =
+  typeof window !== 'undefined' ? new BroadcastChannel('game_sync_channel') : null;
+
+// ─── Store ────────────────────────────────────────────────────────────────────
+
 export const useGameStore = create<GameStore>((set, get) => ({
-  questionSets: [mockSet],
+  questionSets: [],
   session: null,
   lifelines: [],
   overlayState: initialOverlay,
+  loading: false,
 
-  createSession: (setId: string) => {
-    const session: GameSession = {
-      id: crypto.randomUUID(),
-      status: 'WAITING',
-      currentLevel: 0,
-      revealAnswer: false,
-      setId,
-    };
-    const lifelines: LifelineUsage[] = [
-      { id: crypto.randomUUID(), type: 'FIFTY_FIFTY', used: false, sessionId: session.id },
-      { id: crypto.randomUUID(), type: 'ASK_AUDIENCE', used: false, sessionId: session.id },
-      { id: crypto.randomUUID(), type: 'PHONE_FRIEND', used: false, sessionId: session.id },
-    ];
-    set({ session, lifelines, overlayState: { ...initialOverlay, sessionId: session.id } });
+  // ── Bootstrap ──────────────────────────────────────────────────────────────
+
+  loadQuestionSets: async () => {
+    set({ loading: true });
+    try {
+      const sets = await apiClient.get<QuestionSet[]>('/question-sets');
+      const setsWithQuestions = await Promise.all(
+        sets.map(async (s) => {
+          const questions = await apiClient.get<Question[]>(`/questions?setId=${s.id}`);
+          return { ...s, questions };
+        }),
+      );
+      set({ questionSets: setsWithQuestions });
+    } catch (err) {
+      toast.error('Error loading question sets');
+    } finally {
+      set({ loading: false });
+    }
   },
 
-  startGame: () => {
+  // ── Game actions ───────────────────────────────────────────────────────────
+
+  createSession: async (setId: string) => {
+    set({ loading: true });
+    try {
+      const session = await apiClient.post<GameSession>('/game/session', { setId });
+      const lifelines = await apiClient.get<LifelineUsage[]>(
+        `/lifelines/session/${session.id}`,
+      );
+      set({
+        session,
+        lifelines,
+        overlayState: { ...initialOverlay, sessionId: session.id },
+      });
+      // Join the game room so we receive backend WS events for this session
+      socket?.emit('JOIN_GAME', { sessionId: session.id });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to create session');
+    } finally {
+      set({ loading: false });
+    }
+  },
+
+  startGame: async () => {
     const { session } = get();
     if (!session) return;
-    set({ session: { ...session, status: 'PLAYING', currentLevel: 0 } });
-    get().nextQuestion();
-  },
-
-  nextQuestion: () => {
-    const { session, questionSets, overlayState } = get();
-    if (!session) return;
-    const qSet = questionSets.find(s => s.id === session.setId);
-    if (!qSet) return;
-    const nextLevel = session.currentLevel + 1;
-    const question = qSet.questions.find(q => q.level === nextLevel);
-    if (!question) {
-      set({
-        session: { ...session, status: 'WON', currentLevel: nextLevel - 1 },
-        overlayState: { ...overlayState, gameFinished: true, currentQuestion: undefined, revealAnswer: false },
-      });
-      return;
+    set({ loading: true });
+    try {
+      await apiClient.post(`/game/session/${session.id}/start`);
+      set({ session: { ...session, status: 'PLAYING' } });
+      // Auto-load first question right after starting
+      await apiClient.post(`/game/session/${session.id}/next`);
+      // Backend emits GAME_STARTED + SHOW_QUESTION via WS
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to start game');
+    } finally {
+      set({ loading: false });
     }
-    // Strip isCorrect for overlay
-    const safeQuestion: Question = {
-      ...question,
-      answers: question.answers.map(({ isCorrect, ...a }) => a as any),
-    };
-    set({
-      session: { ...session, currentLevel: nextLevel, currentQuestionId: question.id, revealAnswer: false },
-      overlayState: {
-        ...overlayState,
-        currentQuestion: safeQuestion,
-        revealAnswer: false,
-        hiddenAnswerIds: [],
-        correctAnswerId: undefined,
-        gameFinished: false,
-      },
-    });
   },
 
-  revealAnswer: () => {
-    const { session, questionSets, overlayState } = get();
+  nextQuestion: async () => {
+    const { session } = get();
+    if (!session) return;
+    set({ loading: true });
+    try {
+      await apiClient.post(`/game/session/${session.id}/next`);
+      // Backend emits SHOW_QUESTION via WS — overlayState updated in WS listener
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to advance question');
+    } finally {
+      set({ loading: false });
+    }
+  },
+
+  revealAnswer: async () => {
+    const { session } = get();
+    if (!session) return;
+    set({ loading: true });
+    try {
+      await apiClient.post(`/game/session/${session.id}/reveal-answer`);
+      // Backend emits REVEAL_CORRECT via WS — overlayState updated in WS listener
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to reveal answer');
+    } finally {
+      set({ loading: false });
+    }
+  },
+
+  finishGame: async () => {
+    const { session } = get();
+    if (!session) return;
+    set({ loading: true });
+    try {
+      await apiClient.post(`/game/session/${session.id}/finish`);
+      set({ session: { ...session, status: 'FINISHED' } });
+      // Backend emits GAME_FINISHED via WS — overlayState updated in WS listener
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to finish game');
+    } finally {
+      set({ loading: false });
+    }
+  },
+
+  useLifeline: async (type: LifelineType) => {
+    const { session, lifelines } = get();
     if (!session || !session.currentQuestionId) return;
-    const qSet = questionSets.find(s => s.id === session.setId);
-    const question = qSet?.questions.find(q => q.id === session.currentQuestionId);
-    const correctAnswer = question?.answers.find(a => a.isCorrect);
-    if (!correctAnswer) return;
-    set({
-      session: { ...session, revealAnswer: true },
-      overlayState: {
-        ...overlayState,
-        revealAnswer: true,
-        correctAnswerId: correctAnswer.id,
-      },
-    });
-  },
+    const lifeline = lifelines.find((l) => l.type === type && !l.used);
+    if (!lifeline) return;
 
-  finishGame: () => {
-    const { session, overlayState } = get();
-    if (!session) return;
-    set({
-      session: { ...session, status: 'FINISHED' },
-      overlayState: { ...overlayState, gameFinished: true, currentQuestion: undefined },
-    });
-  },
+    const endpointMap: Record<LifelineType, string> = {
+      FIFTY_FIFTY: '/lifelines/fifty-fifty',
+      ASK_AUDIENCE: '/lifelines/ask-audience',
+      PHONE_FRIEND: '/lifelines/phone-friend',
+    };
 
-  useLifeline: (type: LifelineType) => {
-    const { lifelines, overlayState, questionSets, session } = get();
-    const lifeline = lifelines.find(l => l.type === type && !l.used);
-    if (!lifeline || !session) return;
-
-    const updatedLifelines = lifelines.map(l =>
-      l.id === lifeline.id ? { ...l, used: true, usedAt: new Date().toISOString() } : l
-    );
-
-    if (type === 'FIFTY_FIFTY') {
-      const qSet = questionSets.find(s => s.id === session.setId);
-      const question = qSet?.questions.find(q => q.id === session.currentQuestionId);
-      if (question) {
-        const incorrectAnswers = question.answers.filter(a => !a.isCorrect);
-        const toHide = incorrectAnswers.slice(0, 2).map(a => a.id);
-        set({
-          lifelines: updatedLifelines,
-          overlayState: { ...overlayState, hiddenAnswerIds: toHide },
-        });
-        return;
-      }
+    set({ loading: true });
+    try {
+      await apiClient.post(endpointMap[type], {
+        sessionId: session.id,
+        questionId: session.currentQuestionId,
+      });
+      // Backend emits HIDE_ANSWERS (for 50/50) via WS — overlayState updated there
+      // Optimistically mark lifeline as used in local state
+      set({
+        lifelines: lifelines.map((l) =>
+          l.id === lifeline.id ? { ...l, used: true, usedAt: new Date().toISOString() } : l,
+        ),
+      });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to use lifeline');
+    } finally {
+      set({ loading: false });
     }
-    set({ lifelines: updatedLifelines });
   },
 
   resetGame: () => {
-    set({ session: null, lifelines: [], overlayState: initialOverlay });
+    const { session } = get();
+    if (session) {
+      socket?.emit('LEAVE_GAME', { sessionId: session.id });
+    }
+    set({ session: null, lifelines: [], overlayState: { ...initialOverlay } });
   },
 
-  addQuestionSet: (name: string) => {
-    const newSet = {
-      id: crypto.randomUUID(),
-      name,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      questions: [],
-    };
-    set({ questionSets: [...get().questionSets, newSet] });
+  // ── Question set CRUD ──────────────────────────────────────────────────────
+
+  addQuestionSet: async (name: string) => {
+    try {
+      const newSet = await apiClient.post<QuestionSet>('/question-sets', { name });
+      set({ questionSets: [...get().questionSets, { ...newSet, questions: [] }] });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to create question set');
+    }
   },
 
-  deleteQuestionSet: (id: string) => {
-    set({ questionSets: get().questionSets.filter(s => s.id !== id) });
+  deleteQuestionSet: async (id: string) => {
+    try {
+      await apiClient.delete(`/question-sets/${id}`);
+      set({ questionSets: get().questionSets.filter((s) => s.id !== id) });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to delete question set');
+    }
   },
 
-  addQuestion: (setId: string, question: Question) => {
-    set({
-      questionSets: get().questionSets.map(s =>
-        s.id === setId ? { ...s, questions: [...s.questions, question], updatedAt: new Date().toISOString() } : s
-      ),
-    });
+  addQuestion: async (setId: string, question: Omit<Question, 'id'>) => {
+    try {
+      const created = await apiClient.post<Question>('/questions', {
+        text: question.text,
+        level: question.level,
+        category: question.category,
+        setId,
+        answers: question.answers.map((a) => ({ text: a.text, isCorrect: a.isCorrect ?? false })),
+      });
+      set({
+        questionSets: get().questionSets.map((s) =>
+          s.id === setId
+            ? { ...s, questions: [...s.questions, created], updatedAt: new Date().toISOString() }
+            : s,
+        ),
+      });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to add question');
+    }
   },
 
-  updateQuestion: (question: Question) => {
-    set({
-      questionSets: get().questionSets.map(s =>
-        s.id === question.setId
-          ? { ...s, questions: s.questions.map(q => q.id === question.id ? question : q), updatedAt: new Date().toISOString() }
-          : s
-      ),
-    });
+  updateQuestion: async (question: Question) => {
+    try {
+      const updated = await apiClient.patch<Question>(`/questions/${question.id}`, {
+        text: question.text,
+        level: question.level,
+        category: question.category,
+        answers: question.answers.map((a) => ({ text: a.text, isCorrect: a.isCorrect ?? false })),
+      });
+      set({
+        questionSets: get().questionSets.map((s) =>
+          s.id === question.setId
+            ? {
+                ...s,
+                questions: s.questions.map((q) => (q.id === question.id ? updated : q)),
+                updatedAt: new Date().toISOString(),
+              }
+            : s,
+        ),
+      });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to update question');
+    }
   },
 
-  deleteQuestion: (setId: string, questionId: string) => {
-    set({
-      questionSets: get().questionSets.map(s =>
-        s.id === setId ? { ...s, questions: s.questions.filter(q => q.id !== questionId), updatedAt: new Date().toISOString() } : s
-      ),
-    });
+  deleteQuestion: async (setId: string, questionId: string) => {
+    try {
+      await apiClient.delete(`/questions/${questionId}`);
+      set({
+        questionSets: get().questionSets.map((s) =>
+          s.id === setId
+            ? { ...s, questions: s.questions.filter((q) => q.id !== questionId) }
+            : s,
+        ),
+      });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to delete question');
+    }
   },
 }));
 
-// Sincronización Real-time Híbrida (Socket.io + BroadcastChannel)
-let isUpdatingFromSync = false;
+// ─── WebSocket event listeners ────────────────────────────────────────────────
 
-if (typeof window !== 'undefined') {
-  const role = window.location.pathname.includes('/admin') ? 'admin' : 'overlay';
-  const isDemo = new URLSearchParams(window.location.search).get('demo') === 'true';
-  
-  // 1. Conexión WebSocket (Backend necesario para Chrome -> OBS) - Muteada en local si es demo
-  const socket = !isDemo ? io(`http://${window.location.hostname || 'localhost'}:3001/ws/game`, {
-    query: { role },
-    transports: ['websocket', 'polling']
-  }) : null;
+if (socket) {
+  socket.on('SHOW_QUESTION', (data: { sessionId: string; question: Question }) => {
+    const currentSession = useGameStore.getState().session;
+    if (currentSession && data.sessionId !== currentSession.id) return;
+    const newOverlay: OverlayState = {
+      ...useGameStore.getState().overlayState,
+      currentQuestion: { ...data.question, answers: data.question.answers },
+      revealAnswer: false,
+      hiddenAnswerIds: [],
+      correctAnswerId: undefined,
+      gameFinished: false,
+    };
+    useGameStore.setState({ overlayState: newOverlay });
+    channel?.postMessage(JSON.stringify(newOverlay));
+  });
 
-  if (socket) {
-    socket.on('OVERLAY_STATE', (data) => {
-      try {
-        const newState = typeof data === 'string' ? JSON.parse(data) : data;
-        isUpdatingFromSync = true;
-        useGameStore.setState(newState);
-        isUpdatingFromSync = false;
-      } catch (err) {}
-    });
-  }
+  socket.on('HIDE_ANSWERS', (data: { sessionId: string; hiddenAnswerIds: string[] }) => {
+    const currentSession = useGameStore.getState().session;
+    if (currentSession && data.sessionId !== currentSession.id) return;
+    const newOverlay: OverlayState = {
+      ...useGameStore.getState().overlayState,
+      hiddenAnswerIds: data.hiddenAnswerIds,
+    };
+    useGameStore.setState({ overlayState: newOverlay });
+    channel?.postMessage(JSON.stringify(newOverlay));
+  });
 
-  // 2. Conexión Local (No requiere backend, pero funciona sólo entre pestañas del MISMO navegador)
-  const channel = new BroadcastChannel('game_sync_channel');
-  channel.onmessage = (event) => {
+  socket.on('REVEAL_CORRECT', (data: { sessionId: string; correctAnswerId: string }) => {
+    const currentSession = useGameStore.getState().session;
+    if (currentSession && data.sessionId !== currentSession.id) return;
+    const newOverlay: OverlayState = {
+      ...useGameStore.getState().overlayState,
+      revealAnswer: true,
+      correctAnswerId: data.correctAnswerId,
+    };
+    useGameStore.setState({ overlayState: newOverlay });
+    channel?.postMessage(JSON.stringify(newOverlay));
+  });
+
+  socket.on('GAME_STARTED', (_data: { sessionId: string }) => {
+    useGameStore.setState((state) => ({
+      session: state.session ? { ...state.session, status: 'PLAYING' } : state.session,
+    }));
+  });
+
+  socket.on('GAME_FINISHED', (data: { sessionId: string; finalLevel: number }) => {
+    const currentSession = useGameStore.getState().session;
+    if (currentSession && data.sessionId !== currentSession.id) return;
+    const newOverlay: OverlayState = {
+      ...useGameStore.getState().overlayState,
+      gameFinished: true,
+      currentQuestion: undefined,
+    };
+    useGameStore.setState((state) => ({
+      session: state.session ? { ...state.session, status: 'FINISHED' } : state.session,
+      overlayState: newOverlay,
+    }));
+    channel?.postMessage(JSON.stringify(newOverlay));
+  });
+
+  // OVERLAY_STATE: used by the overlay on reconnection (OBS browser source reload)
+  socket.on('OVERLAY_STATE', (data: unknown) => {
     try {
-      const newState = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
-      isUpdatingFromSync = true;
-      useGameStore.setState(newState);
-      isUpdatingFromSync = false;
-    } catch (err) {
-      console.error('[Local] Error al procesar:', err);
-    }
-  };
-
-  // Cuando el estado cambia internamente, lo gritamos por amos canales
-  useGameStore.subscribe((state) => {
-    if (!isUpdatingFromSync && role === 'admin') {
-      // Intentar emitir por WebSocket para el OBS (si el panel está conectado)
-      if (socket && socket.connected) {
-        socket.emit('ADMIN_SYNC', state);
+      const parsed = typeof data === 'string' ? JSON.parse(data) : data;
+      if (
+        role === 'overlay' &&
+        parsed &&
+        typeof parsed === 'object' &&
+        'overlayState' in parsed
+      ) {
+        useGameStore.setState({
+          overlayState: (parsed as { overlayState: OverlayState }).overlayState,
+        });
       }
-      // Emitir siempre de manera local para pestañas dentro del mismo Chrome
-      channel.postMessage(JSON.stringify(state));
+    } catch {
+      // ignore parse errors
     }
   });
 }
 
+// BroadcastChannel: overlay receives state updates from admin in same browser
+if (channel && role === 'overlay') {
+  channel.onmessage = (event) => {
+    try {
+      const overlayState =
+        typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
+      useGameStore.setState({ overlayState });
+    } catch (err) {
+      console.error('[BroadcastChannel] parse error:', err);
+    }
+  };
+}
