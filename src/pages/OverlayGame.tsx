@@ -226,17 +226,17 @@ const OverlayGame = () => {
                 transition={{ delay: 0.2 }}
                 className="text-accent font-display font-black text-5xl mb-4"
               >
-                {session?.status === 'WON' ? '🏆 WINNER!' : 'GAME OVER'}
+                {overlayState.gameStatus === 'WON' ? '🏆 YOU WIN!' : 'GAME OVER'}
               </motion.p>
               <motion.p
                 initial={{ y: 20, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
                 transition={{ delay: 0.4 }}
-                className="text-foreground font-display font-bold text-3xl"
+                className={`text-foreground font-display font-bold ${overlayState.gameStatus === 'WON' ? 'text-xl uppercase tracking-wider' : 'text-3xl'}`}
               >
-                {session?.status === 'WON'
-                  ? LEVEL_AMOUNTS[session.currentLevel]
-                  : `Reached Level ${session?.currentLevel || 0}`
+                {overlayState.gameStatus === 'WON'
+                  ? 'Congratulations for completing the game'
+                  : `Level Reached: ${overlayState.finalLevel || overlayState.currentQuestion?.level || 0}`
                 }
               </motion.p>
             </div>

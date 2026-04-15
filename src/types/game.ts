@@ -50,6 +50,8 @@ export interface OverlayState {
   hiddenAnswerIds: string[];
   correctAnswerId?: string;
   gameFinished: boolean;
+  finalLevel?: number;
+  gameStatus?: SessionStatus;
 }
 
 export const LEVEL_AMOUNTS: Record<number, string> = {

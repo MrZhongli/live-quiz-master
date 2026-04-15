@@ -3,7 +3,17 @@ import { useGameStore } from '@/store/gameStore';
 import { LEVEL_AMOUNTS, MILESTONE_LEVELS } from '@/types/game';
 import { Phone, Users, Scissors, Play, Eye, SkipForward, Square, RotateCcw, Zap, BookOpen } from 'lucide-react';
 import QuestionSetManager from '@/components/QuestionSetManager';
-
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 const AdminPanel = () => {
   const loadQuestionSets = useGameStore((s) => s.loadQuestionSets);
   const {
@@ -137,20 +147,39 @@ const AdminPanel = () => {
                         {lifelines.map(ll => {
                           const Icon = lifelineIcons[ll.type];
                           return (
-                            <button
-                              key={ll.id}
-                              onClick={() => useLifeline(ll.type)}
-                              disabled={ll.used || !overlayState.currentQuestion || overlayState.revealAnswer}
-                              className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all duration-200 font-display font-bold ${
-                                ll.used
-                                  ? 'border-muted bg-muted/20 text-muted-foreground opacity-50'
-                                  : 'border-accent/40 bg-accent/10 text-accent hover:bg-accent/20 hover:border-accent cursor-pointer'
-                              }`}
-                            >
-                              <Icon size={28} />
-                              <span className="text-sm">{lifelineLabels[ll.type]}</span>
-                              {ll.used && <span className="text-xs text-destructive">USED</span>}
-                            </button>
+                            <AlertDialog key={ll.id}>
+                              <AlertDialogTrigger asChild>
+                                <button
+                                  disabled={ll.used || !overlayState.currentQuestion || overlayState.revealAnswer}
+                                  className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all duration-200 font-display font-bold ${
+                                    ll.used
+                                      ? 'border-muted bg-muted/20 text-muted-foreground opacity-50 cursor-not-allowed'
+                                      : 'border-accent/40 bg-accent/10 text-accent hover:bg-accent/20 hover:border-accent cursor-pointer'
+                                  }`}
+                                >
+                                  <Icon size={28} />
+                                  <span className="text-sm">{lifelineLabels[ll.type]}</span>
+                                  {ll.used && <span className="text-xs text-destructive font-black tracking-widest uppercase">Usado</span>}
+                                </button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent className="border-accent/30 bg-background/95 backdrop-blur-xl">
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle className="font-display text-xl flex items-center gap-2">
+                                    <Icon className="text-accent" />
+                                    ¿Usar comodín de {lifelineLabels[ll.type]}?
+                                  </AlertDialogTitle>
+                                  <AlertDialogDescription className="text-muted-foreground font-body">
+                                    Estás a punto de usar este comodín en la pregunta actual. Una vez usado, no podrás volver a utilizarlo en el resto de la partida.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel className="font-display font-bold">Cancelar</AlertDialogCancel>
+                                  <AlertDialogAction onClick={() => useLifeline(ll.type)} className="font-display font-bold bg-accent text-accent-foreground hover:bg-accent/80">
+                                    Sí, Usar Comodín
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
                           );
                         })}
                       </div>
@@ -189,27 +218,7 @@ const AdminPanel = () => {
 
                 {/* Right Column */}
                 <div className="space-y-6">
-                  <div className="glass-panel p-6">
-                    <h2 className="text-lg font-display font-bold text-foreground mb-4">Prize Ladder</h2>
-                    <div className="flex flex-col-reverse gap-1.5">
-                      {Array.from({ length: 15 }, (_, i) => i + 1).map(level => {
-                        const isCurrent = session.currentLevel === level;
-                        const isCompleted = session.currentLevel > level;
-                        const isMilestone = MILESTONE_LEVELS.includes(level);
-                        return (
-                          <div key={level} className={`flex items-center justify-between px-3 py-2 rounded-lg font-display text-sm transition-all duration-300 ${
-                            isCurrent ? 'bg-primary text-primary-foreground glow-blue font-bold scale-105' :
-                            isCompleted ? 'bg-accent/15 text-accent font-semibold' :
-                            isMilestone ? 'bg-accent/5 text-accent/70 font-semibold' :
-                            'bg-secondary/30 text-muted-foreground'
-                          }`}>
-                            <span>{level}</span>
-                            <span>{LEVEL_AMOUNTS[level]}</span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
+
                   <div className="glass-panel p-6">
                     <h2 className="text-lg font-display font-bold text-foreground mb-3">Session Info</h2>
                     <div className="space-y-2 text-sm">

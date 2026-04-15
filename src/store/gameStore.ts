@@ -175,8 +175,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (!session) return;
     set({ loading: true });
     try {
-      await apiClient.post(`/game/session/${session.id}/finish`);
-      set({ session: { ...session, status: 'FINISHED' } });
+      const response = await apiClient.post<{ finalLevel: number }>(`/game/session/${session.id}/finish`);
+      set((state) => ({
+        session: state.session ? { ...state.session, status: 'FINISHED', currentLevel: response.finalLevel } : state.session,
+      }));
       // Backend emits GAME_FINISHED via WS — overlayState updated in WS listener
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to finish game');
@@ -186,8 +188,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   useLifeline: async (type: LifelineType) => {
-    const { session, lifelines } = get();
-    if (!session || !session.currentQuestionId) return;
+    const { session, lifelines, overlayState } = get();
+    const questionId = overlayState.currentQuestion?.id;
+    if (!session || !questionId) return;
     const lifeline = lifelines.find((l) => l.type === type && !l.used);
     if (!lifeline) return;
 
@@ -201,7 +204,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     try {
       await apiClient.post(endpointMap[type], {
         sessionId: session.id,
-        questionId: session.currentQuestionId,
+        questionId: questionId,
       });
       // Backend emits HIDE_ANSWERS (for 50/50) via WS — overlayState updated there
       // Optimistically mark lifeline as used in local state
@@ -320,7 +323,10 @@ if (socket) {
       correctAnswerId: undefined,
       gameFinished: false,
     };
-    useGameStore.setState({ overlayState: newOverlay });
+    useGameStore.setState((state) => ({
+      overlayState: newOverlay,
+      session: state.session ? { ...state.session, currentLevel: data.question.level } : state.session,
+    }));
     channel?.postMessage(JSON.stringify(newOverlay));
   });
 
@@ -353,16 +359,18 @@ if (socket) {
     }));
   });
 
-  socket.on('GAME_FINISHED', (data: { sessionId: string; finalLevel: number }) => {
+  socket.on('GAME_FINISHED', (data: { sessionId: string; finalLevel: number; status: string }) => {
     const currentSession = useGameStore.getState().session;
     if (currentSession && data.sessionId !== currentSession.id) return;
     const newOverlay: OverlayState = {
       ...useGameStore.getState().overlayState,
       gameFinished: true,
       currentQuestion: undefined,
+      finalLevel: data.finalLevel,
+      gameStatus: data.status as any,
     };
     useGameStore.setState((state) => ({
-      session: state.session ? { ...state.session, status: 'FINISHED' } : state.session,
+      session: state.session ? { ...state.session, status: data.status as any, currentLevel: data.finalLevel } : state.session,
       overlayState: newOverlay,
     }));
     channel?.postMessage(JSON.stringify(newOverlay));
